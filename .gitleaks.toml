@@ -1,0 +1,10 @@
+title = "cicd-app gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Ignore build output"
+paths = [
+  '''target/''',
+]
