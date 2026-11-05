@@ -1,0 +1,38 @@
+- name: Deploy To-Do app to AKS
+  hosts: local
+  gather_facts: false
+
+  vars:
+    k8s_dir: "{{ playbook_dir }}/../k8s"
+    full_image: "{{ image_repo }}:{{ image_tag }}"
+
+  tasks:
+    - name: Copy deployment manifest to a temp file
+      ansible.builtin.copy:
+        src: "{{ k8s_dir }}/deployment.yaml"
+        dest: /tmp/deployment.yaml
+
+    - name: Insert the new image name
+      ansible.builtin.replace:
+        path: /tmp/deployment.yaml
+        regexp: "IMAGE_PLACEHOLDER"
+        replace: "{{ full_image }}"
+
+    - name: Apply Deployment and Service
+      ansible.builtin.command: >
+        kubectl apply -f /tmp/deployment.yaml -f {{ k8s_dir }}/service.yaml
+
+    - name: Wait for rollout to finish
+      ansible.builtin.command: kubectl rollout status deployment/todo-app --timeout=300s
+
+    - name: Wait for the public IP
+      ansible.builtin.command: >
+        kubectl get svc todo-app-svc -o jsonpath={.status.loadBalancer.ingress[0].ip}
+      register: svc_ip
+      until: svc_ip.stdout != ""
+      retries: 30
+      delay: 10
+
+    - name: Show app URL
+      ansible.builtin.debug:
+        msg: "App is live at http://{{ svc_ip.stdout }}"
